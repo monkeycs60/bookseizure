@@ -1,6 +1,12 @@
 import PDFParser from 'pdf-parse';
 import PDFDocument from 'pdfkit';
 
+interface PDFMetadata {
+  pages: number;
+  title: string;
+  author: string;
+}
+
 export async function parsePDF(file: Buffer) {
   const data = await PDFParser(file);
   
@@ -27,16 +33,16 @@ export async function parsePDF(file: Buffer) {
       pages: data.numpages,
       title: data.info?.Title || 'Document sans titre',
       author: data.info?.Author || 'Auteur inconnu'
-    }
+    } as PDFMetadata
   };
 }
 
-export async function createSummaryPDF(summary: string, metadata: any): Promise<Buffer> {
+export async function createSummaryPDF(summary: string, metadata: PDFMetadata): Promise<Buffer> {
   return new Promise((resolve) => {
     const doc = new PDFDocument();
     const chunks: Buffer[] = [];
     
-    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     
     // En-tête

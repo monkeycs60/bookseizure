@@ -1,10 +1,6 @@
-import { StreamingTextResponse, AnthropicStream } from 'ai';
-import Anthropic from '@anthropic-ai/sdk';
+import { anthropic } from '@ai-sdk/anthropic';
+import { streamText } from 'ai';
 import { parsePDF, createSummaryPDF } from '@/lib/services/pdf-service';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 export async function POST(req: Request) {
   try {
@@ -24,25 +20,36 @@ export async function POST(req: Request) {
       detailed: "environ 5 pages (2500 mots)",
       extra: "environ 15 pages (7500 mots)"
     };
-    
-    // Prompt pour Claude
-    const prompt = `Tu es un expert en analyse et synthèse de livres. Analyse ce texte et crée un résumé structuré en ${summaryLengths[summaryType as keyof typeof summaryLengths]}. 
-    Le résumé doit inclure :
-    - Les points clés
-    - Les idées principales
-    - Les conclusions importantes
-    
-    Texte à analyser : ${sections.join('\n\n')}`;
 
-    // Appel à Claude
-    const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 4096,
-      temperature: 0.7,
-      messages: [{ role: "user", content: prompt }],
+    const result = await streamText({
+      model: anthropic('claude-3-haiku-20240307'),
+      messages: [
+        {
+          role: 'system',
+          content: 'Tu es un expert en analyse et synthèse de livres.',
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Analyse ce texte et crée un résumé structuré en ${summaryLengths[summaryType as keyof typeof summaryLengths]}. 
+              Le résumé doit inclure :
+              - Les points clés
+              - Les idées principales
+              - Les conclusions importantes
+              
+              Texte à analyser : ${sections.join('\n\n')}`
+            }
+          ]
+        }
+      ]
     });
 
-    const summary = response.content[0].text;
+    let summary = '';
+    for await (const chunk of result.textStream) {
+      summary += chunk;
+    }
     
     // Création du PDF
     const pdfBuffer = await createSummaryPDF(summary, metadata);
