@@ -8,40 +8,39 @@ interface PDFMetadata {
 }
 
 export async function parsePDF(file: Buffer) {
-  // Utiliser pdf-parse pour extraire le texte
-  const pdfData = await PDFParser(file);
-  const text = pdfData.text;
-  
-  // Découpage en sections de ~1000 mots
-  const words = text.split(/\s+/);
-  const sections = [];
-  let currentSection = [];
-  
-  for (const word of words) {
-    if (word) {
+  try {
+    // Utiliser pdf-parse pour extraire le texte et les métadonnées
+    const pdfData = await PDFParser(file);
+    
+    // Découpage en sections de ~1000 mots
+    const words = pdfData.text.split(/\s+/).filter(Boolean);
+    const sections = [];
+    let currentSection = [];
+    
+    for (const word of words) {
       currentSection.push(word);
       if (currentSection.length >= 1000) {
         sections.push(currentSection.join(' '));
         currentSection = [];
       }
     }
-  }
-  
-  if (currentSection.length > 0) {
-    sections.push(currentSection.join(' '));
-  }
+    
+    if (currentSection.length > 0) {
+      sections.push(currentSection.join(' '));
+    }
 
-  // Utiliser pdf-lib pour les métadonnées
-  const pdfDoc = await PDFDocument.load(file);
-  
-  return {
-    sections,
-    metadata: {
-      pages: pdfDoc.getPageCount(),
-      title: pdfDoc.getTitle() || 'Document sans titre',
-      author: pdfDoc.getAuthor() || 'Auteur inconnu'
-    } as PDFMetadata
-  };
+    // Extraire les métadonnées
+    const metadata: PDFMetadata = {
+      pages: pdfData.numpages,
+      title: pdfData.info?.Title || 'Document sans titre',
+      author: pdfData.info?.Author || 'Auteur inconnu'
+    };
+    
+    return { sections, metadata };
+  } catch (error) {
+    console.error('Erreur lors du parsing du PDF:', error);
+    throw new Error('Impossible de lire le fichier PDF');
+  }
 }
 
 export async function createSummaryPDF(summary: string, metadata: PDFMetadata): Promise<Uint8Array> {
