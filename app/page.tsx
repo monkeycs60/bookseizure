@@ -21,7 +21,7 @@ export default async function Home() {
           </p>
           <div className="mt-10">
             <a
-              href="#"
+              href="/upload"
               className="rounded-full bg-blue-600 px-8 py-4 text-white font-medium hover:bg-blue-700 transition-colors"
             >
               Commencer gratuitement
