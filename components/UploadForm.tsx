@@ -16,12 +16,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { uploadFormSchema, type UploadFormValues } from '@/lib/schemas/upload';
+import { useAction } from "next-safe-action/hooks";
+import { analyzeDocument } from "@/lib/actions/analyze";
 
 export function UploadForm() {
 	const [progress, setProgress] = useState(0);
-	const [summary, setSummary] = useState<string>('');
 	const [isAnalyzing, setIsAnalyzing] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+
 	const form = useForm<UploadFormValues>({
 		resolver: zodResolver(uploadFormSchema),
 		defaultValues: {
@@ -30,58 +31,37 @@ export function UploadForm() {
 		},
 	});
 
-	console.log(form.formState.errors);
-	console.log(form.getValues());
+	const { executeAsync, result, status } = useAction(analyzeDocument);
 
 	async function onSubmit(values: UploadFormValues) {
-		console.log('values', values);
 		try {
 			setIsAnalyzing(true);
 			setProgress(0);
-			setError(null);
-
-			const formData = new FormData();
-			formData.append('file', values.file);
-			formData.append('summaryType', values.summaryType);
 
 			// Simulation de la progression
 			const progressInterval = setInterval(() => {
 				setProgress((prev) => Math.min(prev + 1, 95));
 			}, 500);
 
-			const response = await fetch('/api/analyze', {
-				method: 'POST',
-				body: formData,
-			});
-
+			const actionResult = await executeAsync(values);
 			clearInterval(progressInterval);
-
-			console.log('response', response);
-
-			if (!response.ok) {
-				throw new Error("Erreur lors de l'analyse");
-			}
-
-			const data = await response.json();
-			setSummary(data.summary);
 			setProgress(100);
 
-			// Téléchargement du PDF
-			const pdfBlob = new Blob([Buffer.from(data.pdf, 'base64')], {
-				type: 'application/pdf',
-			});
-			const url = window.URL.createObjectURL(pdfBlob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = 'resume.pdf';
-			a.click();
-			window.URL.revokeObjectURL(url);
-		} catch (error: unknown) {
-			if (error instanceof Error) {
-				setError(error.message);
-			} else {
-				setError("Une erreur est survenue lors de l'analyse");
+			if (actionResult?.data?.success && actionResult?.data.pdf) {
+				// Téléchargement du PDF
+				const pdfBlob = new Blob(
+					[Buffer.from(actionResult.data.pdf, 'base64')],
+					{
+					type: 'application/pdf',
+				});
+				const url = window.URL.createObjectURL(pdfBlob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = 'resume.pdf';
+				a.click();
+				window.URL.revokeObjectURL(url);
 			}
+		} catch (error) {
 			console.error('Error:', error);
 		} finally {
 			setIsAnalyzing(false);
@@ -97,11 +77,6 @@ export function UploadForm() {
 	return (
 		<Form {...form}>
 			<form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
-				{error && (
-					<div className='p-4 text-red-600 bg-red-50 rounded-lg'>
-						{error}
-					</div>
-				)}
 				<FormField
 					control={form.control}
 					name='file'
@@ -208,13 +183,6 @@ export function UploadForm() {
 						</FormItem>
 					)}
 				/>
-
-				{summary && (
-					<div className='mt-8 p-4 bg-gray-50 rounded-lg'>
-						<h3 className='text-lg font-semibold mb-2'>Résumé</h3>
-						<p className='whitespace-pre-wrap'>{summary}</p>
-					</div>
-				)}
 			</form>
 		</Form>
 	);
