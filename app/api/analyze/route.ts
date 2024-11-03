@@ -52,12 +52,12 @@ export async function POST(req: Request) {
     }
     
     // Création du PDF
-    const pdfBuffer = await createSummaryPDF(summary, metadata);
+    const pdfBytes = await createSummaryPDF(summary, metadata);
     
     // Retourner le résumé et le PDF
     return new Response(JSON.stringify({
       summary,
-      pdf: pdfBuffer.toString('base64')
+      pdf: Buffer.from(pdfBytes).toString('base64')
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
