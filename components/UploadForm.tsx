@@ -21,7 +21,7 @@ export function UploadForm() {
 	const [progress, setProgress] = useState(0);
 	const [summary, setSummary] = useState<string>('');
 	const [isAnalyzing, setIsAnalyzing] = useState(false);
-
+	const [error, setError] = useState<string | null>(null);
 	const form = useForm<UploadFormValues>({
 		resolver: zodResolver(uploadFormSchema),
 		defaultValues: {
@@ -34,9 +34,11 @@ export function UploadForm() {
 	console.log(form.getValues());
 
 	async function onSubmit(values: UploadFormValues) {
+		console.log('values', values);
 		try {
 			setIsAnalyzing(true);
 			setProgress(0);
+			setError(null);
 
 			const formData = new FormData();
 			formData.append('file', values.file);
@@ -53,6 +55,8 @@ export function UploadForm() {
 			});
 
 			clearInterval(progressInterval);
+
+			console.log('response', response);
 
 			if (!response.ok) {
 				throw new Error("Erreur lors de l'analyse");
@@ -72,9 +76,13 @@ export function UploadForm() {
 			a.download = 'resume.pdf';
 			a.click();
 			window.URL.revokeObjectURL(url);
-		} catch (error) {
+		} catch (error: unknown) {
+			if (error instanceof Error) {
+				setError(error.message);
+			} else {
+				setError("Une erreur est survenue lors de l'analyse");
+			}
 			console.error('Error:', error);
-			// Gérer l'erreur ici
 		} finally {
 			setIsAnalyzing(false);
 		}
@@ -89,10 +97,15 @@ export function UploadForm() {
 	return (
 		<Form {...form}>
 			<form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
+				{error && (
+					<div className='p-4 text-red-600 bg-red-50 rounded-lg'>
+						{error}
+					</div>
+				)}
 				<FormField
 					control={form.control}
 					name='file'
-					render={({ field }) => (
+					render={() => (
 						<FormItem>
 							<FormControl>
 								<div className='grid w-full max-w-lg gap-4'>
