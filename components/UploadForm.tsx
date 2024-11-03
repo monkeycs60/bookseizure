@@ -2,60 +2,89 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
 	Form,
 	FormControl,
-	FormDescription,
 	FormField,
 	FormItem,
+	FormLabel,
 	FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState } from 'react';
 import { Progress } from '@/components/ui/progress';
-
-const formSchema = z.object({
-	file: z
-		.custom<FileList>()
-		.refine((files) => files?.length === 1, 'Le fichier est requis.')
-		.transform((files) => files[0])
-		.refine(
-			(file) =>
-				file?.type === 'application/pdf' ||
-				file?.type === 'application/epub+zip',
-			'Seuls les fichiers PDF et EPUB sont acceptés.'
-		)
-		.refine(
-			(file) => file?.size <= 10000000,
-			`La taille maximum est de 10MB.`
-		),
-});
+import { uploadFormSchema, type UploadFormValues } from '@/lib/schemas/upload';
 
 export function UploadForm() {
 	const [progress, setProgress] = useState(0);
+	const [summary, setSummary] = useState<string>('');
+	const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-	const form = useForm<z.infer<typeof formSchema>>({
-		resolver: zodResolver(formSchema),
+	const form = useForm<UploadFormValues>({
+		resolver: zodResolver(uploadFormSchema),
+		defaultValues: {
+			file: undefined,
+			summaryType: 'flash',
+		},
 	});
 
-	async function onSubmit(values: z.infer<typeof formSchema>) {
-		// Simulation du progrès d'upload
-		setProgress(0);
-		const interval = setInterval(() => {
-			setProgress((prev) => {
-				if (prev >= 95) {
-					clearInterval(interval);
-					return prev;
-				}
-				return prev + 5;
-			});
-		}, 100);
+	console.log(form.formState.errors);
+	console.log(form.getValues());
 
-		// Ici viendra la logique d'upload réelle
-		console.log(values);
+	async function onSubmit(values: UploadFormValues) {
+		try {
+			setIsAnalyzing(true);
+			setProgress(0);
+
+			const formData = new FormData();
+			formData.append('file', values.file);
+			formData.append('summaryType', values.summaryType);
+
+			// Simulation de la progression
+			const progressInterval = setInterval(() => {
+				setProgress((prev) => Math.min(prev + 1, 95));
+			}, 500);
+
+			const response = await fetch('/api/analyze', {
+				method: 'POST',
+				body: formData,
+			});
+
+			clearInterval(progressInterval);
+
+			if (!response.ok) {
+				throw new Error("Erreur lors de l'analyse");
+			}
+
+			const data = await response.json();
+			setSummary(data.summary);
+			setProgress(100);
+
+			// Téléchargement du PDF
+			const pdfBlob = new Blob([Buffer.from(data.pdf, 'base64')], {
+				type: 'application/pdf',
+			});
+			const url = window.URL.createObjectURL(pdfBlob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'resume.pdf';
+			a.click();
+			window.URL.revokeObjectURL(url);
+		} catch (error) {
+			console.error('Error:', error);
+			// Gérer l'erreur ici
+		} finally {
+			setIsAnalyzing(false);
+		}
 	}
+
+	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files && e.target.files[0]) {
+			form.setValue('file', e.target.files[0]);
+		}
+	};
 
 	return (
 		<Form {...form}>
@@ -63,7 +92,7 @@ export function UploadForm() {
 				<FormField
 					control={form.control}
 					name='file'
-					render={() => (
+					render={({ field }) => (
 						<FormItem>
 							<FormControl>
 								<div className='grid w-full max-w-lg gap-4'>
@@ -87,10 +116,7 @@ export function UploadForm() {
 													type='file'
 													className='sr-only'
 													accept='.pdf,.epub'
-													// onChange={(e) => {
-													// 	onChange(e.target.files);
-													// }}
-													// {...field}
+													onChange={handleFileChange}
 												/>
 											</label>
 											<p className='pl-1'>ou glissez-déposez</p>
@@ -106,21 +132,76 @@ export function UploadForm() {
 												className='w-full'
 											/>
 											<p className='text-sm text-gray-600 text-center'>
-												{progress}% uploadé
+												{progress}%{' '}
+												{progress === 100
+													? 'Terminé'
+													: "En cours d'analyse"}
 											</p>
 										</div>
 									)}
-									<Button type='submit'>Analyser le document</Button>
+									<Button type='submit' disabled={isAnalyzing}>
+										{isAnalyzing
+											? 'Analyse en cours...'
+											: 'Analyser le document'}
+									</Button>
 								</div>
 							</FormControl>
 							<FormMessage />
-							<FormDescription>
-								Votre document sera analysé par notre IA pour en
-								extraire les points essentiels.
-							</FormDescription>
 						</FormItem>
 					)}
 				/>
+
+				<FormField
+					control={form.control}
+					name='summaryType'
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>Type de résumé</FormLabel>
+							<FormControl>
+								<RadioGroup
+									onValueChange={field.onChange}
+									defaultValue={field.value}
+									className='grid grid-cols-3 gap-4'>
+									<FormItem className='flex gap-1 items-center'>
+										<FormControl>
+											<RadioGroupItem value='flash' id='flash' />
+										</FormControl>
+										<FormLabel htmlFor='flash'>
+											Résumé éclair (1 page)
+										</FormLabel>
+									</FormItem>
+									<FormItem className='flex gap-1 items-center'>
+										<FormControl>
+											<RadioGroupItem
+												value='detailed'
+												id='detailed'
+											/>
+										</FormControl>
+										<FormLabel htmlFor='detailed'>
+											Résumé détaillé (5 pages)
+										</FormLabel>
+									</FormItem>
+									<FormItem className='flex gap-1 items-center'>
+										<FormControl>
+											<RadioGroupItem value='extra' id='extra' />
+										</FormControl>
+										<FormLabel htmlFor='extra'>
+											Résumé extra (15 pages)
+										</FormLabel>
+									</FormItem>
+								</RadioGroup>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+
+				{summary && (
+					<div className='mt-8 p-4 bg-gray-50 rounded-lg'>
+						<h3 className='text-lg font-semibold mb-2'>Résumé</h3>
+						<p className='whitespace-pre-wrap'>{summary}</p>
+					</div>
+				)}
 			</form>
 		</Form>
 	);
