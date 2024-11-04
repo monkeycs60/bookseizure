@@ -16,8 +16,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { uploadFormSchema, type UploadFormValues } from '@/lib/schemas/upload';
-import { useAction } from "next-safe-action/hooks";
-import { analyzeDocument } from "@/lib/actions/analyze";
+import { useAction } from 'next-safe-action/hooks';
+import { analyzeDocument } from '@/lib/actions/analyze';
 
 export function UploadForm() {
 	const [progress, setProgress] = useState(0);
@@ -31,7 +31,7 @@ export function UploadForm() {
 		},
 	});
 
-	const { executeAsync, result, status } = useAction(analyzeDocument);
+	const { executeAsync } = useAction(analyzeDocument);
 
 	async function onSubmit(values: UploadFormValues) {
 		try {
@@ -47,20 +47,22 @@ export function UploadForm() {
 			clearInterval(progressInterval);
 			setProgress(100);
 
-			if (actionResult?.data?.success && actionResult?.data.pdf) {
-				// Téléchargement du PDF
-				const pdfBlob = new Blob(
-					[Buffer.from(actionResult.data.pdf, 'base64')],
-					{
-					type: 'application/pdf',
-				});
-				const url = window.URL.createObjectURL(pdfBlob);
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = 'resume.pdf';
-				a.click();
-				window.URL.revokeObjectURL(url);
-			}
+			console.log(actionResult);
+
+			// if (actionResult?.data?.success && actionResult?.data.pdf) {
+			// 	// Téléchargement du PDF
+			// 	const pdfBlob = new Blob(
+			// 		[Buffer.from(actionResult.data.pdf, 'base64')],
+			// 		{
+			// 		type: 'application/pdf',
+			// 	});
+			// 	const url = window.URL.createObjectURL(pdfBlob);
+			// 	const a = document.createElement('a');
+			// 	a.href = url;
+			// 	a.download = 'resume.pdf';
+			// 	a.click();
+			// 	window.URL.revokeObjectURL(url);
+			// }
 		} catch (error) {
 			console.error('Error:', error);
 		} finally {
